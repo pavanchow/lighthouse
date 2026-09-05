@@ -1,0 +1,18 @@
+[package]
+name = "lighthouse"
+version = "0.1.0"
+edition = "2021"
+description = "A dependency-free browser rendering engine you can inspect stage by stage"
+license = "MIT"
+repository = "https://github.com/pavanchow/lighthouse"
+
+[[bin]]
+name = "lighthouse"
+path = "src/bin/lighthouse.rs"
+
+[lib]
+name = "lighthouse"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
