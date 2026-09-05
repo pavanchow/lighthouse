@@ -2,11 +2,1161 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>lighthouse</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lighthouse Playground</title>
+<style>
+  /* Base theme. Dark overrides come AFTER this block and re-declare both the
+     variables and the body background, so a dark UA never leaves dark text on
+     a white page. */
+  :root {
+    --bg: #f5f5f7;
+    --panel: #ffffff;
+    --panel-2: #fbfbfd;
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --border: #d2d2d7;
+    --accent: #0071e3;
+    --accent-soft: #e8f1fd;
+    --code-bg: #f5f5f7;
+    --tag: #0b7285;
+    --attr: #9a3412;
+    --textnode: #6e6e73;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+    --radius: 14px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    --box-content: #6ea8fe;
+    --box-padding: #b2f2bb;
+    --box-border: #ffe066;
+    --box-margin: #ffc078;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --panel: #1c1c1e;
+      --panel-2: #161618;
+      --text: #f5f5f7;
+      --text-2: #98989d;
+      --border: #38383a;
+      --accent: #0a84ff;
+      --accent-soft: #0a2540;
+      --code-bg: #0f0f10;
+      --tag: #63e6be;
+      --attr: #ffa94d;
+      --textnode: #98989d;
+      --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.4);
+      --box-content: #1971c2;
+      --box-padding: #2b8a3e;
+      --box-border: #e8a800;
+      --box-margin: #d9480f;
+    }
+    /* Re-declare the body background so dark Chrome does not paint the base
+       light background under dark text. */
+    body { background: var(--bg); color: var(--text); }
+  }
+
+  header {
+    padding: 40px 24px 16px;
+    text-align: center;
+  }
+  header h1 {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  header p.tagline {
+    color: var(--text-2);
+    font-size: 17px;
+    margin: 0 0 10px;
+  }
+  header a.repo {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  header a.repo:hover { text-decoration: underline; }
+
+  main {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 8px 20px 60px;
+  }
+
+  .how {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 26px;
+    margin: 16px 0 24px;
+  }
+  .how h2 { margin: 0 0 12px; font-size: 20px; letter-spacing: -0.01em; }
+  .how h3 { margin: 18px 0 8px; font-size: 15px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+  .how ol, .how ul { margin: 8px 0; padding-left: 22px; }
+  .how li { margin: 5px 0; }
+  .how code {
+    font-family: var(--mono);
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  details.how-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    list-style: none;
+  }
+  details.how-details summary::-webkit-details-marker { display: none; }
+  details.how-details summary::before { content: "\25B8  "; color: var(--accent); }
+  details.how-details[open] summary::before { content: "\25BE  "; }
+
+  .editors {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  textarea {
+    width: 100%;
+    height: 200px;
+    resize: vertical;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: var(--shadow);
+    tab-size: 2;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "dom styles" "canvas canvas";
+    gap: 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .card > h2 {
+    margin: 0;
+    padding: 14px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card > .body { padding: 14px 18px; overflow: auto; max-height: 460px; }
+  #dom-card { grid-area: dom; }
+  #styles-card { grid-area: styles; }
+  #canvas-card { grid-area: canvas; }
+
+  .tree, .styles-out { font-family: var(--mono); font-size: 13px; }
+  .tree .node {
+    padding: 1px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .tree .node:hover { background: var(--accent-soft); }
+  .tree .node.selected { background: var(--accent); color: #fff; }
+  .tree .node.selected .tag, .tree .node.selected .attr, .tree .node.selected .txt { color: #fff; }
+  .tree .children { padding-left: 18px; border-left: 1px dashed var(--border); margin-left: 6px; }
+  .tag { color: var(--tag); }
+  .attr { color: var(--attr); }
+  .txt { color: var(--textnode); font-style: italic; }
+
+  table.props { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 13px; }
+  table.props td { padding: 3px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.props td.k { color: var(--text-2); white-space: nowrap; }
+  .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--border); vertical-align: -1px; margin-right: 5px; }
+  .selected-hint { color: var(--text-2); font-style: italic; }
+
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+  .toggle input { width: 15px; height: 15px; accent-color: var(--accent); }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); padding: 10px 18px 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  canvas { display: block; width: 100%; background: var(--panel-2); }
+
+  footer { text-align: center; color: var(--text-2); font-size: 13px; padding: 24px; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 820px) {
+    .editors { grid-template-columns: 1fr; }
+    .panels { grid-template-columns: 1fr; grid-template-areas: "dom" "styles" "canvas"; }
+  }
+</style>
 </head>
 <body>
-<h1>lighthouse</h1>
-<p>Site coming soon.</p>
-<p><a href="https://github.com/pavanchow/lighthouse">View repository</a></p>
+<header>
+  <h1>Lighthouse Playground</h1>
+  <p class="tagline">A dependency free browser rendering pipeline you can watch, stage by stage.</p>
+  <a class="repo" href="https://github.com/pavanchow/lighthouse">github.com/pavanchow/lighthouse</a>
+</header>
+
+<main>
+  <details class="how how-details" open>
+    <summary>How to use this playground</summary>
+    <div>
+      <p>This page runs the exact same pipeline as the Rust engine, reimplemented in JavaScript for teaching: HTML becomes a DOM tree, CSS becomes a stylesheet, the two are combined into computed styles, and those are laid out into boxes and painted onto the canvas. Everything updates as you type.</p>
+
+      <h3>The controls</h3>
+      <ul>
+        <li><b>HTML editor</b>. Type markup on the left. The parser handles nesting, attributes, void elements like <code>&lt;br&gt;</code>, and implicit closing like a bare <code>&lt;li&gt;</code>.</li>
+        <li><b>CSS editor</b>. Type rules on the right. Selectors can use a tag, a <code>.class</code>, an <code>#id</code>, or a combination. The cascade uses specificity then source order.</li>
+        <li><b>DOM tree panel</b>. Shows the parsed tree. Click any node to select it.</li>
+        <li><b>Computed styles panel</b>. Shows the cascaded and inherited values for the selected node, plus its box model numbers.</li>
+        <li><b>Rendered boxes canvas</b>. Draws the laid out boxes. Toggle <b>Show box edges</b> to overlay margin, border, padding, and content like browser devtools. The selected node is outlined.</li>
+      </ul>
+
+      <h3>A short guided tour</h3>
+      <ol>
+        <li>Look at the <b>DOM tree</b>. Notice how nesting in the HTML editor becomes parent and child nodes.</li>
+        <li>Click the <code>&lt;h1&gt;</code> node. The <b>Computed styles</b> panel fills in. See how <code>color</code> was inherited while <code>font-size</code> came from a rule.</li>
+        <li>In the CSS editor, change <code>.card</code> width to <code>240px</code>. Watch the canvas reflow instantly.</li>
+        <li>Turn on <b>Show box edges</b>. The orange band is margin, yellow is border, green is padding, blue is content.</li>
+        <li>Add a rule like <code>p { color: crimson; }</code> and then a stronger one, <code>#lead { color: teal; }</code>, on the lead paragraph. The higher specificity id wins. That is the cascade.</li>
+      </ol>
+    </div>
+  </details>
+
+  <div class="editors">
+    <div class="field">
+      <label for="html-in">HTML</label>
+      <textarea id="html-in" spellcheck="false"></textarea>
+    </div>
+    <div class="field">
+      <label for="css-in">CSS</label>
+      <textarea id="css-in" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="panels">
+    <section class="card" id="dom-card">
+      <h2>DOM tree</h2>
+      <div class="body"><div class="tree" id="dom-out"></div></div>
+    </section>
+
+    <section class="card" id="styles-card">
+      <h2>Computed styles</h2>
+      <div class="body"><div class="styles-out" id="styles-out"></div></div>
+    </section>
+
+    <section class="card" id="canvas-card">
+      <h2>
+        Rendered boxes
+        <label class="toggle"><input type="checkbox" id="edges-toggle"> Show box edges</label>
+      </h2>
+      <div class="legend">
+        <span><i style="background:var(--box-margin)"></i>margin</span>
+        <span><i style="background:var(--box-border)"></i>border</span>
+        <span><i style="background:var(--box-padding)"></i>padding</span>
+        <span><i style="background:var(--box-content)"></i>content</span>
+      </div>
+      <div class="body" style="max-height:none;"><canvas id="view"></canvas></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  Lighthouse is a teaching grade rendering engine. Source and the Rust version at
+  <a href="https://github.com/pavanchow/lighthouse">github.com/pavanchow/lighthouse</a>.
+</footer>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Stage 1: HTML tokenizer + tree builder (mirrors src/html.rs)
+   ============================================================ */
+
+const VOID_TAGS = new Set(["area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"]);
+const BLOCK_TAGS = new Set(["address","article","aside","blockquote","div","dl","dd","dt","fieldset","figcaption","figure","footer","form","h1","h2","h3","h4","h5","h6","header","hgroup","hr","li","main","nav","ol","p","pre","section","table","ul"]);
+
+const NAMED_ENTITIES = { amp:"&", lt:"<", gt:">", quot:'"', apos:"'", nbsp:" " };
+
+function decodeEntities(s) {
+  if (s.indexOf("&") === -1) return s;
+  return s.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);?/g, (m, body) => {
+    if (body[0] === "#") {
+      const code = body[1] === "x" || body[1] === "X"
+        ? parseInt(body.slice(2), 16)
+        : parseInt(body.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+    }
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, body) ? NAMED_ENTITIES[body] : m;
+  });
+}
+
+let NODE_ID = 0;
+function elemNode(tag, attrs, children) {
+  return { id: NODE_ID++, type: "element", tag, attrs, children };
+}
+function textNode(data) {
+  return { id: NODE_ID++, type: "text", data, children: [] };
+}
+
+function tokenizeHTML(input) {
+  const tokens = [];
+  let i = 0;
+  const n = input.length;
+  const isNameStart = c => /[a-zA-Z]/.test(c);
+  const isNameChar = c => /[a-zA-Z0-9\-:_]/.test(c);
+
+  while (i < n) {
+    if (input[i] === "<") {
+      if (input.startsWith("<!--", i)) {
+        const end = input.indexOf("-->", i + 4);
+        i = end === -1 ? n : end + 3;
+        continue;
+      }
+      if (input.startsWith("<!", i) || input.startsWith("<?", i)) {
+        const end = input.indexOf(">", i);
+        i = end === -1 ? n : end + 1;
+        continue;
+      }
+      if (input.startsWith("</", i)) {
+        i += 2;
+        let name = "";
+        while (i < n && isNameChar(input[i])) name += input[i++];
+        while (i < n && input[i] !== ">") i++;
+        if (i < n) i++;
+        if (name) tokens.push({ kind: "end", name: name.toLowerCase() });
+        continue;
+      }
+      if (i + 1 < n && isNameStart(input[i + 1])) {
+        i++;
+        let name = "";
+        while (i < n && isNameChar(input[i])) name += input[i++];
+        name = name.toLowerCase();
+        const attrs = {};
+        let selfClosing = false;
+        while (i < n) {
+          while (i < n && /\s/.test(input[i])) i++;
+          if (i >= n) break;
+          if (input[i] === ">") { i++; break; }
+          if (input[i] === "/") {
+            i++;
+            if (i < n && input[i] === ">") { selfClosing = true; i++; break; }
+            continue;
+          }
+          let aname = "";
+          while (i < n && !/[\s=>\/]/.test(input[i])) aname += input[i++];
+          aname = aname.toLowerCase();
+          while (i < n && /\s/.test(input[i])) i++;
+          let avalue = "";
+          if (i < n && input[i] === "=") {
+            i++;
+            while (i < n && /\s/.test(input[i])) i++;
+            const q = input[i];
+            if (q === '"' || q === "'") {
+              i++;
+              let raw = "";
+              while (i < n && input[i] !== q) raw += input[i++];
+              if (i < n) i++;
+              avalue = decodeEntities(raw);
+            } else {
+              let raw = "";
+              while (i < n && !/[\s>]/.test(input[i])) raw += input[i++];
+              avalue = decodeEntities(raw);
+            }
+          }
+          if (aname && !(aname in attrs)) attrs[aname] = avalue;
+        }
+        tokens.push({ kind: "start", name, attrs, selfClosing });
+        continue;
+      }
+      // stray '<'
+      let text = input[i++];
+      while (i < n && input[i] !== "<") text += input[i++];
+      const dec = decodeEntities(text);
+      if (dec) tokens.push({ kind: "text", data: dec });
+      continue;
+    }
+    let text = "";
+    while (i < n && input[i] !== "<") text += input[i++];
+    const dec = decodeEntities(text);
+    if (dec) tokens.push({ kind: "text", data: dec });
+  }
+  return tokens;
+}
+
+function parseHTML(source) {
+  const tokens = tokenizeHTML(source);
+  const root = elemNode("__root__", {}, []);
+  const stack = [root];
+  const top = () => stack[stack.length - 1];
+  const currentTag = () => top().type === "element" ? top().tag : null;
+
+  function popElement() {
+    if (stack.length <= 1) return;
+    const node = stack.pop();
+    top().children.push(node);
+  }
+  function closeNamed(name) {
+    let target = -1;
+    for (let k = 1; k < stack.length; k++) {
+      if (stack[k].type === "element" && stack[k].tag === name) target = k;
+    }
+    if (target !== -1) { while (stack.length > target) popElement(); }
+  }
+  function implicitClose(name) {
+    while (true) {
+      const cur = currentTag();
+      if (!cur) return;
+      let close = false;
+      if (name === "li") close = cur === "li";
+      else if (name === "option") close = cur === "option";
+      else if (name === "tr") close = cur === "tr" || cur === "td" || cur === "th";
+      else if (name === "td" || name === "th") close = cur === "td" || cur === "th";
+      else if (name === "p") close = cur === "p";
+      else if (BLOCK_TAGS.has(name)) close = cur === "p";
+      if (close) popElement(); else return;
+    }
+  }
+
+  for (const t of tokens) {
+    if (t.kind === "text") {
+      if (stack.length === 1 && t.data.trim() === "") continue;
+      top().children.push(textNode(t.data));
+    } else if (t.kind === "start") {
+      implicitClose(t.name);
+      if (t.selfClosing || VOID_TAGS.has(t.name)) {
+        top().children.push(elemNode(t.name, t.attrs, []));
+      } else {
+        stack.push(elemNode(t.name, t.attrs, []));
+      }
+    } else if (t.kind === "end") {
+      if (VOID_TAGS.has(t.name)) continue;
+      closeNamed(t.name);
+    }
+  }
+  while (stack.length > 1) popElement();
+  return root;
+}
+
+/* ============================================================
+   Stage 2: CSS parser + specificity (mirrors src/css.rs)
+   ============================================================ */
+
+const NAMED_COLORS = {
+  black:[0,0,0], white:[255,255,255], red:[255,0,0], green:[0,128,0], lime:[0,255,0],
+  blue:[0,0,255], yellow:[255,255,0], cyan:[0,255,255], aqua:[0,255,255], magenta:[255,0,255],
+  fuchsia:[255,0,255], gray:[128,128,128], grey:[128,128,128], silver:[192,192,192],
+  maroon:[128,0,0], olive:[128,128,0], navy:[0,0,128], teal:[0,128,128], purple:[128,0,128],
+  orange:[255,165,0], crimson:[220,20,60], transparent:[0,0,0,0]
+};
+
+function parseColor(s) {
+  s = s.trim();
+  if (s[0] === "#") {
+    const hex = s.slice(1);
+    if (hex.length === 3) {
+      const r = parseInt(hex[0]+hex[0],16), g = parseInt(hex[1]+hex[1],16), b = parseInt(hex[2]+hex[2],16);
+      if ([r,g,b].every(Number.isFinite)) return {r,g,b,a:255};
+    } else if (hex.length === 6) {
+      const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+      if ([r,g,b].every(Number.isFinite)) return {r,g,b,a:255};
+    } else if (hex.length === 8) {
+      const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16), a = parseInt(hex.slice(6,8),16);
+      if ([r,g,b,a].every(Number.isFinite)) return {r,g,b,a};
+    }
+    return null;
+  }
+  let m = s.match(/^rgba?\(([^)]*)\)$/);
+  if (m) {
+    const parts = m[1].split(",").map(p => p.trim());
+    if (parts.length === 3 || parts.length === 4) {
+      const r = Math.max(0,Math.min(255,parseFloat(parts[0])|0));
+      const g = Math.max(0,Math.min(255,parseFloat(parts[1])|0));
+      const b = Math.max(0,Math.min(255,parseFloat(parts[2])|0));
+      const a = parts.length === 4 ? Math.round(Math.max(0,Math.min(1,parseFloat(parts[3])))*255) : 255;
+      return {r,g,b,a};
+    }
+  }
+  const named = NAMED_COLORS[s.toLowerCase()];
+  if (named) return {r:named[0],g:named[1],b:named[2],a:named.length>3?named[3]:255};
+  return null;
+}
+
+function parseValue(s) {
+  s = s.trim();
+  const c = parseColor(s);
+  if (c) return { kind: "color", color: c };
+  const pm = s.match(/^(-?\d*\.?\d+)px$/);
+  if (pm) return { kind: "length", px: parseFloat(pm[1]) };
+  const nm = s.match(/^-?\d*\.?\d+$/);
+  if (nm) return { kind: "number", num: parseFloat(s) };
+  return { kind: "keyword", word: s.toLowerCase() };
+}
+
+function parseCSS(source) {
+  // Strip comments first.
+  source = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = [];
+  let i = 0;
+  const n = source.length;
+  while (i < n) {
+    while (i < n && /\s/.test(source[i])) i++;
+    if (i >= n) break;
+    let selText = "";
+    while (i < n && source[i] !== "{") selText += source[i++];
+    if (i >= n) break;
+    i++; // {
+    let declText = "";
+    while (i < n && source[i] !== "}") declText += source[i++];
+    if (i < n) i++; // }
+    const selectors = selText.split(",").map(parseSelector).filter(Boolean);
+    const declarations = [];
+    for (const chunk of declText.split(";")) {
+      const idx = chunk.indexOf(":");
+      if (idx === -1) continue;
+      const name = chunk.slice(0, idx).trim().toLowerCase();
+      const value = chunk.slice(idx + 1).trim();
+      if (name) declarations.push({ name, value: parseValue(value) });
+    }
+    if (selectors.length) rules.push({ selectors, declarations });
+  }
+  return { rules };
+}
+
+function parseSelector(text) {
+  text = text.trim();
+  if (!text) return null;
+  const sel = { tag: null, id: null, classes: [] };
+  const re = /([#.]?)([a-zA-Z0-9\-_]+)|(\*)/g;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m[3] === "*") continue;
+    if (m[1] === "#") sel.id = m[2];
+    else if (m[1] === ".") sel.classes.push(m[2]);
+    else sel.tag = m[2].toLowerCase();
+  }
+  return sel;
+}
+
+function specificity(sel) {
+  return [sel.id ? 1 : 0, sel.classes.length, sel.tag ? 1 : 0];
+}
+function cmpSpec(a, b) {
+  for (let k = 0; k < 3; k++) { if (a[k] !== b[k]) return a[k] - b[k]; }
+  return 0;
+}
+
+/* ============================================================
+   Stage 3: style resolution (mirrors src/style.rs)
+   ============================================================ */
+
+const INHERITED = new Set(["color","font-size","font-family","line-height","text-align"]);
+const NONE_TAGS = new Set(["head","style","script","title","meta","link","base"]);
+
+function classesOf(node) {
+  const c = node.attrs["class"];
+  return c ? c.split(/\s+/).filter(Boolean) : [];
+}
+function matchesSelector(node, sel) {
+  if (sel.tag && sel.tag !== node.tag) return false;
+  if (sel.id && node.attrs["id"] !== sel.id) return false;
+  const cls = classesOf(node);
+  return sel.classes.every(c => cls.includes(c));
+}
+
+function specifiedValues(node, sheet, inherited) {
+  const values = {};
+  for (const k in inherited) if (INHERITED.has(k)) values[k] = inherited[k];
+  const matched = [];
+  for (const rule of sheet.rules) {
+    let best = null;
+    for (const sel of rule.selectors) {
+      if (matchesSelector(node, sel)) {
+        const sp = specificity(sel);
+        if (!best || cmpSpec(sp, best) > 0) best = sp;
+      }
+    }
+    if (best) matched.push({ spec: best, rule });
+  }
+  matched.sort((a, b) => cmpSpec(a.spec, b.spec)); // stable
+  for (const { rule } of matched) {
+    for (const d of rule.declarations) values[d.name] = d.value;
+  }
+  return values;
+}
+
+function styleTree(node, sheet, inherited) {
+  inherited = inherited || {};
+  let values;
+  if (node.type === "element") {
+    values = specifiedValues(node, sheet, inherited);
+  } else {
+    values = {};
+    for (const k in inherited) if (INHERITED.has(k)) values[k] = inherited[k];
+  }
+  const children = node.children.map(c => styleTree(c, sheet, values));
+  return { node, values, children };
+}
+
+function uaDisplay(tag) {
+  if (NONE_TAGS.has(tag)) return "none";
+  if (tag === "__root__" || tag === "html" || tag === "body" || BLOCK_TAGS.has(tag)) return "block";
+  return "inline";
+}
+function displayOf(styled) {
+  const d = styled.values["display"];
+  if (d && d.kind === "keyword") {
+    if (d.word === "block") return "block";
+    if (d.word === "none") return "none";
+    return "inline";
+  }
+  if (styled.node.type === "text") return "inline";
+  return uaDisplay(styled.node.tag);
+}
+
+/* ============================================================
+   Stage 4: layout (mirrors src/layout.rs)
+   ============================================================ */
+
+const DEFAULT_FONT = 16, CHAR_W = 0.5, LINE_H = 1.2;
+
+function toPx(v) {
+  if (!v) return 0;
+  if (v.kind === "length") return v.px;
+  if (v.kind === "number") return v.num;
+  return 0;
+}
+function isAuto(v) { return v && v.kind === "keyword" && v.word === "auto"; }
+
+function newBox(type, styled) {
+  return {
+    type, styled,
+    d: { content:{x:0,y:0,width:0,height:0}, padding:{l:0,r:0,t:0,b:0}, border:{l:0,r:0,t:0,b:0}, margin:{l:0,r:0,t:0,b:0} },
+    children: []
+  };
+}
+function marginBox(d) {
+  return {
+    x: d.content.x - d.padding.l - d.border.l - d.margin.l,
+    y: d.content.y - d.padding.t - d.border.t - d.margin.t,
+    width: d.content.width + d.padding.l + d.padding.r + d.border.l + d.border.r + d.margin.l + d.margin.r,
+    height: d.content.height + d.padding.t + d.padding.b + d.border.t + d.border.b + d.margin.t + d.margin.b
+  };
+}
+function borderBox(d) {
+  return {
+    x: d.content.x - d.padding.l - d.border.l,
+    y: d.content.y - d.padding.t - d.border.t,
+    width: d.content.width + d.padding.l + d.padding.r + d.border.l + d.border.r,
+    height: d.content.height + d.padding.t + d.padding.b + d.border.t + d.border.b
+  };
+}
+function paddingBox(d) {
+  return {
+    x: d.content.x - d.padding.l,
+    y: d.content.y - d.padding.t,
+    width: d.content.width + d.padding.l + d.padding.r,
+    height: d.content.height + d.padding.t + d.padding.b
+  };
+}
+
+function buildLayoutTree(styled) {
+  const disp = displayOf(styled);
+  const box = newBox(disp === "inline" ? "inline" : "block", styled);
+  const blockContext = styled.children.some(c => displayOf(c) === "block");
+  let anon = null;
+  for (const child of styled.children) {
+    const cd = displayOf(child);
+    if (cd === "block") {
+      box.children.push(buildLayoutTree(child));
+      anon = null;
+    } else if (cd === "inline") {
+      if (blockContext && child.node.type === "text" && child.node.data.trim() === "") continue;
+      if (box.type === "block") {
+        if (!anon) { anon = newBox("anon", null); box.children.push(anon); }
+        anon.children.push(buildLayoutTree(child));
+      } else {
+        box.children.push(buildLayoutTree(child));
+      }
+    }
+  }
+  return box;
+}
+
+function lookup(styled, name, fallback, def) {
+  if (styled) {
+    if (name in styled.values) return styled.values[name];
+    if (fallback in styled.values) return styled.values[fallback];
+  }
+  return def;
+}
+
+function fontSize(box) {
+  if (box.styled && box.styled.values["font-size"]) {
+    const px = toPx(box.styled.values["font-size"]);
+    if (px > 0) return px;
+  }
+  return DEFAULT_FONT;
+}
+
+function inlineTextWidth(styled, fs) {
+  if (styled.node.type === "text") return styled.node.data.trim().length * fs * CHAR_W;
+  return styled.children.reduce((s, c) => s + inlineTextWidth(c, fs), 0);
+}
+function inlineBoxWidth(box, fs) {
+  return box.type === "inline" && box.styled ? inlineTextWidth(box.styled, fs) : 0;
+}
+
+function layoutBlock(box, cb) {
+  calcWidth(box, cb);
+  calcPosition(box, cb);
+  layoutChildren(box);
+  calcHeight(box);
+}
+
+function calcWidth(box, cb) {
+  const s = box.styled;
+  const auto = { kind:"keyword", word:"auto" };
+  const zero = { kind:"length", px:0 };
+  const get = (n,f) => s ? lookup(s,n,f,n==="width"?auto:zero) : (n==="width"?auto:zero);
+  let width = get("width","width");
+  let ml = get("margin-left","margin"), mr = get("margin-right","margin");
+  const bl = get("border-left-width","border-width"), br = get("border-right-width","border-width");
+  const pl = get("padding-left","padding"), pr = get("padding-right","padding");
+  const total = [ml,mr,bl,br,pl,pr,width].reduce((a,v)=>a+toPx(v),0);
+  const cw = cb.content.width;
+
+  if (!isAuto(width) && total > cw) {
+    if (isAuto(ml)) ml = zero;
+    if (isAuto(mr)) mr = zero;
+  }
+  const underflow = cw - total;
+  const wa = isAuto(width), la = isAuto(ml), ra = isAuto(mr);
+  if (!wa && !la && !ra) mr = { kind:"length", px: toPx(mr)+underflow };
+  else if (!wa && !la && ra) mr = { kind:"length", px: underflow };
+  else if (!wa && la && !ra) ml = { kind:"length", px: underflow };
+  else if (!wa && la && ra) { ml = { kind:"length", px: underflow/2 }; mr = { kind:"length", px: underflow/2 }; }
+  else {
+    if (la) ml = zero;
+    if (ra) mr = zero;
+    if (underflow >= 0) width = { kind:"length", px: underflow };
+    else { width = zero; mr = { kind:"length", px: toPx(mr)+underflow }; }
+  }
+  const d = box.d;
+  d.content.width = toPx(width);
+  d.padding.l = toPx(pl); d.padding.r = toPx(pr);
+  d.border.l = toPx(bl); d.border.r = toPx(br);
+  d.margin.l = toPx(ml); d.margin.r = toPx(mr);
+}
+
+function calcPosition(box, cb) {
+  const s = box.styled;
+  const zero = { kind:"length", px:0 };
+  const get = (n,f) => s ? lookup(s,n,f,zero) : zero;
+  const d = box.d;
+  d.margin.t = toPx(get("margin-top","margin"));
+  d.margin.b = toPx(get("margin-bottom","margin"));
+  d.border.t = toPx(get("border-top-width","border-width"));
+  d.border.b = toPx(get("border-bottom-width","border-width"));
+  d.padding.t = toPx(get("padding-top","padding"));
+  d.padding.b = toPx(get("padding-bottom","padding"));
+  d.content.x = cb.content.x + d.margin.l + d.border.l + d.padding.l;
+  d.content.y = cb.content.height + cb.content.y + d.margin.t + d.border.t + d.padding.t;
+}
+
+function hasInlineChildren(box) {
+  if (box.type === "anon") return true;
+  if (box.children.length && box.children.every(c => c.type === "inline")) return true;
+  return isTextLeaf(box);
+}
+function isTextLeaf(box) {
+  return box.children.length === 0 && box.type === "inline" && box.styled && box.styled.node.type === "text";
+}
+
+function layoutChildren(box) {
+  if (hasInlineChildren(box)) { layoutInline(box); return; }
+  const d = box.d;
+  for (const child of box.children) {
+    layoutBlock(child, d);
+    d.content.height += marginBox(child.d).height;
+  }
+}
+
+function layoutInline(box) {
+  const cw = box.d.content.width;
+  const ox = box.d.content.x, oy = box.d.content.y;
+  let cursorX = 0, lineTop = 0, lineH = 0, maxW = 0;
+
+  if (isTextLeaf(box)) {
+    const fs = fontSize(box);
+    box.d.content.height = fs * LINE_H;
+    return;
+  }
+  for (const child of box.children) {
+    const fs = fontSize(child);
+    const w = inlineBoxWidth(child, fs);
+    const h = fs * LINE_H;
+    if (cursorX > 0 && cursorX + w > cw) { maxW = Math.max(maxW, cursorX); lineTop += lineH; cursorX = 0; lineH = 0; }
+    child.d.content.x = ox + cursorX;
+    child.d.content.y = oy + lineTop;
+    child.d.content.width = w;
+    child.d.content.height = h;
+    positionInlineText(child);
+    cursorX += w;
+    lineH = Math.max(lineH, h);
+  }
+  maxW = Math.max(maxW, cursorX);
+  box.d.content.height = lineTop + lineH;
+  if (cw <= 0) box.d.content.width = maxW;
+}
+
+function positionInlineText(box) {
+  const ox = box.d.content.x, oy = box.d.content.y;
+  let cursorX = 0;
+  for (const child of box.children) {
+    const fs = fontSize(child);
+    const w = inlineBoxWidth(child, fs);
+    child.d.content.x = ox + cursorX;
+    child.d.content.y = oy;
+    child.d.content.width = w;
+    child.d.content.height = fs * LINE_H;
+    positionInlineText(child);
+    cursorX += w;
+  }
+}
+
+function calcHeight(box) {
+  if (box.styled && box.styled.values["height"] && box.styled.values["height"].kind === "length") {
+    box.d.content.height = box.styled.values["height"].px;
+  }
+}
+
+function layoutTree(styled, viewportWidth) {
+  const root = buildLayoutTree(styled);
+  const cb = { content:{x:0,y:0,width:viewportWidth,height:0}, padding:{l:0,r:0,t:0,b:0}, border:{l:0,r:0,t:0,b:0}, margin:{l:0,r:0,t:0,b:0} };
+  layoutBlock(root, cb);
+  return root;
+}
+
+/* ============================================================
+   Stage 5: paint to canvas + panels
+   ============================================================ */
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function colorStr(c) {
+  return "rgba(" + c.r + "," + c.g + "," + c.b + "," + (c.a/255) + ")";
+}
+function getColor(styled, name) {
+  if (styled && styled.values[name] && styled.values[name].kind === "color") return styled.values[name].color;
+  return null;
+}
+
+function collectBoxes(box, list) {
+  list.push(box);
+  for (const c of box.children) collectBoxes(c, list);
+}
+
+let LAST_LAYOUT = null;
+
+function paint() {
+  if (!LAST_LAYOUT) return;
+  const canvas = document.getElementById("view");
+  const ctx = canvas.getContext("2d");
+  const showEdges = document.getElementById("edges-toggle").checked;
+
+  const cssWidth = canvas.parentElement.clientWidth - 36;
+  const contentH = Math.max(LAST_LAYOUT.d.content.height + 20, 120);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssWidth * dpr;
+  canvas.height = contentH * dpr;
+  canvas.style.height = contentH + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssWidth, contentH);
+
+  const boxes = [];
+  collectBoxes(LAST_LAYOUT, boxes);
+
+  for (const box of boxes) {
+    const d = box.d;
+    if (showEdges) {
+      const mb = marginBox(d), bb = borderBox(d), pb = paddingBox(d), cbx = d.content;
+      fillRect(ctx, mb, cssVar("--box-margin"), 0.55);
+      fillRect(ctx, bb, cssVar("--box-border"), 0.6);
+      fillRect(ctx, pb, cssVar("--box-padding"), 0.6);
+      fillRect(ctx, cbx, cssVar("--box-content"), 0.6);
+    } else {
+      const bg = getColor(box.styled, "background") || getColor(box.styled, "background-color");
+      if (bg && bg.a > 0) fillRect(ctx, paddingBox(d), colorStr(bg), 1);
+      const bc = getColor(box.styled, "border-color") || getColor(box.styled, "border");
+      if (bc) drawBorder(ctx, box, colorStr(bc));
+    }
+  }
+  // Text on top.
+  for (const box of boxes) {
+    if (box.styled && box.styled.node.type === "text") {
+      const t = box.styled.node.data.trim();
+      if (!t) continue;
+      const fs = fontSize(box);
+      const col = getColor(box.styled, "color");
+      ctx.fillStyle = showEdges ? cssVar("--text") : (col ? colorStr(col) : cssVar("--text"));
+      ctx.font = fs + "px " + cssVar("--sans");
+      ctx.textBaseline = "top";
+      ctx.fillText(t, box.d.content.x, box.d.content.y);
+    }
+  }
+  // Selected outline.
+  if (SELECTED_ID != null) {
+    const sel = boxes.find(b => b.styled && b.styled.node.id === SELECTED_ID);
+    if (sel) {
+      const bb = borderBox(sel.d);
+      ctx.strokeStyle = cssVar("--accent");
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bb.x + 0.5, bb.y + 0.5, Math.max(bb.width,1), Math.max(bb.height,1));
+    }
+  }
+}
+
+function fillRect(ctx, r, color, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.fillRect(r.x, r.y, Math.max(r.width, 0), Math.max(r.height, 0));
+  ctx.globalAlpha = 1;
+}
+function drawBorder(ctx, box, color) {
+  const d = box.d, bb = borderBox(d);
+  ctx.fillStyle = color;
+  if (d.border.l) ctx.fillRect(bb.x, bb.y, d.border.l, bb.height);
+  if (d.border.r) ctx.fillRect(bb.x+bb.width-d.border.r, bb.y, d.border.r, bb.height);
+  if (d.border.t) ctx.fillRect(bb.x, bb.y, bb.width, d.border.t);
+  if (d.border.b) ctx.fillRect(bb.x, bb.y+bb.height-d.border.b, bb.width, d.border.b);
+}
+
+/* ---------- DOM tree panel ---------- */
+
+let SELECTED_ID = null;
+let STYLED_INDEX = {};
+
+function renderDOM(node) {
+  const container = document.getElementById("dom-out");
+  container.innerHTML = "";
+  container.appendChild(renderNode(node));
+}
+function renderNode(node) {
+  const wrap = document.createElement("div");
+  const line = document.createElement("span");
+  line.className = "node" + (node.id === SELECTED_ID ? " selected" : "");
+  line.dataset.id = node.id;
+  if (node.type === "text") {
+    line.innerHTML = '<span class="txt">"' + escapeHTML(node.data.trim()) + '"</span>';
+  } else {
+    let s = '<span class="tag">&lt;' + escapeHTML(node.tag);
+    for (const k in node.attrs) {
+      s += ' <span class="attr">' + escapeHTML(k) + '="' + escapeHTML(node.attrs[k]) + '"</span><span class="tag">';
+    }
+    s += '&gt;</span>';
+    line.innerHTML = s;
+  }
+  line.addEventListener("click", (e) => { e.stopPropagation(); selectNode(node.id); });
+  wrap.appendChild(line);
+  if (node.children && node.children.length) {
+    const kids = document.createElement("div");
+    kids.className = "children";
+    for (const c of node.children) kids.appendChild(renderNode(c));
+    wrap.appendChild(kids);
+  }
+  return wrap;
+}
+
+function selectNode(id) {
+  SELECTED_ID = id;
+  document.querySelectorAll(".tree .node").forEach(el => {
+    el.classList.toggle("selected", Number(el.dataset.id) === id);
+  });
+  renderStyles();
+  paint();
+}
+
+/* ---------- computed styles panel ---------- */
+
+function formatValue(v) {
+  if (v.kind === "keyword") return v.word;
+  if (v.kind === "length") return v.px + "px";
+  if (v.kind === "number") return String(v.num);
+  if (v.kind === "color") {
+    const c = v.color;
+    const hex = "#" + [c.r,c.g,c.b].map(x => x.toString(16).padStart(2,"0")).join("");
+    return '<span class="swatch" style="background:' + colorStr(c) + '"></span>' + hex;
+  }
+  return "";
+}
+
+function renderStyles() {
+  const out = document.getElementById("styles-out");
+  if (SELECTED_ID == null || !STYLED_INDEX[SELECTED_ID]) {
+    out.innerHTML = '<p class="selected-hint">Click a node in the DOM tree to see its computed styles.</p>';
+    return;
+  }
+  const entry = STYLED_INDEX[SELECTED_ID];
+  const styled = entry.styled;
+  const label = styled.node.type === "text"
+    ? '#text "' + escapeHTML(styled.node.data.trim()) + '"'
+    : "&lt;" + escapeHTML(styled.node.tag) + "&gt;";
+  let html = '<p style="margin:0 0 10px"><b>' + label + '</b></p>';
+
+  const keys = Object.keys(styled.values).sort();
+  if (keys.length) {
+    html += '<table class="props">';
+    for (const k of keys) html += '<tr><td class="k">' + escapeHTML(k) + '</td><td>' + formatValue(styled.values[k]) + '</td></tr>';
+    html += '</table>';
+  } else {
+    html += '<p class="selected-hint">No computed properties.</p>';
+  }
+
+  const box = entry.box;
+  if (box) {
+    const d = box.d;
+    html += '<p style="margin:14px 0 6px"><b>Box model</b></p><table class="props">';
+    html += row("content", d.content.x.toFixed(1)+", "+d.content.y.toFixed(1)+"  "+d.content.width.toFixed(1)+" x "+d.content.height.toFixed(1));
+    html += row("padding", edge(d.padding));
+    html += row("border", edge(d.border));
+    html += row("margin", edge(d.margin));
+    html += '</table>';
+  }
+  out.innerHTML = html;
+}
+function row(k, v) { return '<tr><td class="k">' + k + '</td><td>' + v + '</td></tr>'; }
+function edge(e) { return "T " + e.t + "  R " + e.r + "  B " + e.b + "  L " + e.l; }
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+}
+
+/* ---------- driver ---------- */
+
+function indexStyled(styled, boxByNodeId) {
+  STYLED_INDEX[styled.node.id] = { styled, box: boxByNodeId[styled.node.id] || null };
+  for (const c of styled.children) indexStyled(c, boxByNodeId);
+}
+function mapBoxes(box, map) {
+  if (box.styled) map[box.styled.node.id] = box;
+  for (const c of box.children) mapBoxes(c, map);
+}
+
+function run() {
+  try {
+    NODE_ID = 0;
+    const htmlSrc = document.getElementById("html-in").value;
+    const cssSrc = document.getElementById("css-in").value;
+    const dom = parseHTML(htmlSrc);
+    const sheet = parseCSS(cssSrc);
+    const styled = styleTree(dom, sheet, {});
+    const canvasWidth = Math.max(document.getElementById("canvas-card").clientWidth - 36, 320);
+    const layout = layoutTree(styled, canvasWidth);
+    LAST_LAYOUT = layout;
+
+    const boxByNodeId = {};
+    mapBoxes(layout, boxByNodeId);
+    STYLED_INDEX = {};
+    indexStyled(styled, boxByNodeId);
+
+    if (SELECTED_ID == null || !STYLED_INDEX[SELECTED_ID]) {
+      SELECTED_ID = null;
+    }
+    renderDOM(dom);
+    renderStyles();
+    paint();
+  } catch (err) {
+    console.error("Lighthouse pipeline error:", err);
+  }
+}
+
+const SAMPLE_HTML = `<body>
+  <div class="card">
+    <h1>Lighthouse</h1>
+    <p id="lead">A rendering engine you can inspect stage by stage.</p>
+    <p>Built by a <span class="tag">renderer</span> for humans and agents.</p>
+    <ul>
+      <li>Parse HTML into a DOM
+      <li>Cascade CSS by specificity
+      <li>Lay out boxes, then paint
+    </ul>
+  </div>
+</body>`;
+
+const SAMPLE_CSS = `body { display: block; padding: 16px; background: #f0f2f5; }
+.card {
+  display: block;
+  width: 420px;
+  padding: 20px;
+  margin: 8px;
+  background: #ffffff;
+  border-width: 2px;
+  border-color: #d0d7de;
+  color: #1f2328;
+}
+h1 { display: block; margin: 4px; font-size: 30px; color: #0b7285; }
+p  { display: block; margin: 8px; font-size: 16px; }
+#lead { color: #0071e3; }
+.tag { color: #d6336c; }
+ul { display: block; margin: 8px; }
+li { display: block; margin: 4px; color: #495057; }`;
+
+function init() {
+  document.getElementById("html-in").value = SAMPLE_HTML;
+  document.getElementById("css-in").value = SAMPLE_CSS;
+  document.getElementById("html-in").addEventListener("input", run);
+  document.getElementById("css-in").addEventListener("input", run);
+  document.getElementById("edges-toggle").addEventListener("change", paint);
+  window.addEventListener("resize", run);
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener("change", paint);
+  run();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
+</script>
 </body>
 </html>
