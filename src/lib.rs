@@ -15,6 +15,24 @@
 //! feed it into the next. See `DESIGN.md` for the algorithms and the documented
 //! HTML and CSS subset.
 
+#![warn(clippy::pedantic)]
+// A rendering engine converts between floats and integer pixel or byte
+// coordinates constantly, so the cast lints are expected and intentional. Exact
+// float comparisons are used deliberately in golden layout checks, and the small
+// pure helpers do not benefit from `#[must_use]` noise.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::float_cmp,
+    clippy::similar_names,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::missing_panics_doc
+)]
+
 pub mod css;
 pub mod dom;
 pub mod fuzz;

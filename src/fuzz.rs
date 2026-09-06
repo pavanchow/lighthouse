@@ -17,6 +17,7 @@
 
 use crate::css::{self, Stylesheet};
 use crate::dom::{self, AttrMap, Node};
+use std::fmt::Write as _;
 use crate::layout::{layout_tree, BoxType, Dimensions, LayoutBox, Rect};
 use crate::style::style_tree;
 
@@ -29,7 +30,9 @@ impl Rng {
     /// Seed the generator.
     pub fn new(seed: u64) -> Self {
         Rng {
-            state: seed.wrapping_mul(2862933555777941757).wrapping_add(3037000493),
+            state: seed
+                .wrapping_mul(2_862_933_555_777_941_757)
+                .wrapping_add(3_037_000_493),
         }
     }
 
@@ -37,8 +40,8 @@ impl Rng {
         // Numerical Recipes LCG constants.
         self.state = self
             .state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         self.state
     }
 
@@ -65,13 +68,15 @@ pub fn seed_from_env() -> u64 {
     std::env::var("LIGHTHOUSE_FUZZ_SEED")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(0xC0FFEE)
+        .unwrap_or(0x00C0_FFEE)
 }
 
 /// Generate a random document: nested `div`s with per element ids and a
-/// stylesheet giving each a random height, padding and margin. Widths are left
-/// auto or set to a fraction so children never intentionally overflow, which is
-/// the domain where the containment invariant is meaningful.
+/// stylesheet giving each a random height, padding and margin. Widths are
+/// deliberately allowed to overflow the parent (large fixed widths, wide
+/// padding, and `box-sizing: border-box`), which is exactly the domain the
+/// containment invariant must survive: the engine clamps the border box to the
+/// containing block, so containment has to hold even under intentional overflow.
 pub fn generate_document(rng: &mut Rng, max_nodes: u32) -> (Node, Stylesheet) {
     let mut css_src = String::from("div { display: block; }\n");
     let mut counter = 0u32;
@@ -94,11 +99,22 @@ fn generate_node(
     *counter += 1;
 
     let height = rng.below(80);
-    let padding = rng.below(15);
-    let margin = rng.below(15);
-    css_src.push_str(&format!(
-        "#{id} {{ height: {height}px; padding: {padding}px; margin: {margin}px; }}\n"
-    ));
+    let padding = rng.below(40);
+    let margin = rng.below(40);
+    let mut decl = format!("height: {height}px; padding: {padding}px; margin: {margin}px;");
+
+    // Width: leave auto a third of the time, otherwise pick a fixed width that
+    // can be anywhere from tiny to far wider than the 800px viewport, so
+    // children routinely try to overflow their parent.
+    if rng.below(3) != 0 {
+        let width = rng.below(1200);
+        let _ = write!(decl, " width: {width}px;");
+    }
+    // Occasionally use border-box so padding and border eat into the width.
+    if rng.below(4) == 0 {
+        decl.push_str(" box-sizing: border-box;");
+    }
+    let _ = writeln!(css_src, "#{id} {{ {decl} }}");
 
     let mut attrs = AttrMap::new();
     attrs.insert("id".to_string(), id);
@@ -171,6 +187,14 @@ pub fn check_invariants(root: &LayoutBox) -> Option<String> {
 
 fn check_non_negative(b: &LayoutBox) -> Option<String> {
     let c = b.dimensions.content;
+    // Non-finite values (NaN, infinity) compare false against everything, so
+    // they would silently pass a plain `< -EPS` test. Reject them explicitly.
+    if !c.width.is_finite() || !c.height.is_finite() {
+        return Some(format!(
+            "non-finite dimension: width {} height {}",
+            c.width, c.height
+        ));
+    }
     if c.width < -EPS || c.height < -EPS {
         return Some(format!(
             "negative dimension: width {:.3} height {:.3}",

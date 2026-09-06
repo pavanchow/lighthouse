@@ -13,6 +13,13 @@
 //! CSS is taken from any `<style>` elements in the document and from a companion
 //! stylesheet passed with `--css`.
 
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+
 use lighthouse::css;
 use lighthouse::dom::{Node, NodeType};
 use lighthouse::layout::{layout_tree, Dimensions, Rect};
