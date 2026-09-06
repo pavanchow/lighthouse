@@ -74,10 +74,26 @@ Lighthouse commits its claims as tests. Three gates back the three hardest stage
 
 1. **HTML parse correctness** (`tests/html_parse.rs`). Test documents parse into an exact expected tree: tag names, nesting, attributes, and text, including void elements and implicit closing. A round trip test serializes the DOM back to HTML and reparses it, asserting the two trees are equal.
 2. **CSS cascade and specificity** (`tests/css_cascade.rs`). For nodes matched by several rules, the winning declaration is the one with the highest specificity, then the latest source order. This is checked against hand specified expectations and against a reference specificity calculation.
-3. **Layout invariants** (`tests/layout.rs`). Over randomly generated documents, every in flow block child stays inside its parent content box, block siblings stack without vertical overlap, and no box has a negative dimension. Golden tests pin down exact rectangles computed by hand. The random run is bounded for CI and is reproducible through `LIGHTHOUSE_FUZZ_OPS` and `LIGHTHOUSE_FUZZ_SEED`.
+3. **Layout invariants** (`tests/layout.rs`). Over randomly generated documents, every in flow block child stays inside its parent content box, block siblings stack without vertical overlap, and no box has a negative or non finite dimension. The generator deliberately produces boxes that try to overflow their parent (large fixed widths, wide padding, and `box-sizing: border-box`), so the containment invariant is exercised under overflow, not just when everything already fits. Golden tests pin down exact rectangles computed by hand. The random run is bounded for CI and is reproducible through `LIGHTHOUSE_FUZZ_OPS` and `LIGHTHOUSE_FUZZ_SEED`.
 
 ```sh
 LIGHTHOUSE_FUZZ_OPS=5000 LIGHTHOUSE_FUZZ_SEED=1 cargo test fuzz_layout_invariants_hold
+```
+
+## Robustness and fuzzing
+
+Lighthouse parses untrusted input, so the parsers are built to never hang, overflow the stack, or panic on hostile markup.
+
+- The HTML tree builder caps nesting depth, so a document with hundreds of thousands of unclosed tags cannot build an unbounded tree that overflows the recursive serialize, style, layout, and paint walks.
+- Adjacent text runs are coalesced into a single text node, which keeps the serialize then reparse round trip stable even for fragments full of stray `<` characters.
+- The CSS parser always makes forward progress, so a stray `:` or `@` at selector position can no longer spin the parser forever.
+- Non finite CSS numbers (`nan`, `inf`, and exponents that overflow `f32`) are rejected at parse time so they cannot poison layout with NaN or infinity.
+- The layout engine clips every in flow block box to its containing block, so a box whose width overflows the parent is clamped rather than escaping.
+
+The `stress` binary drives all of this at scale. It fuzzes layout invariants across millions of seeds and throws random and structurally hostile HTML and CSS at the full pipeline, running each input inside `catch_unwind` with a watchdog that turns any hang into a precise, reproducible failure.
+
+```sh
+LIGHTHOUSE_FUZZ_OPS=3000000 LIGHTHOUSE_ADV_OPS=200000 cargo run --release --bin stress
 ```
 
 ## Documented subset
