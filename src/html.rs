@@ -341,6 +341,16 @@ fn match_entity(s: &str) -> Option<(char, usize)> {
     None
 }
 
+/// The maximum element nesting depth the tree builder will create. Pathological
+/// input such as hundreds of thousands of unclosed tags would otherwise build an
+/// arbitrarily deep tree, and every later stage (serialize, style, layout,
+/// paint, and even dropping the tree) walks it recursively, so an uncapped depth
+/// is a stack overflow waiting to happen. Once the cap is reached, further start
+/// tags are attached as childless elements at the current level instead of
+/// opening a deeper level. The value matches the order of magnitude real
+/// browsers use for their fragment parsing depth limit.
+const MAX_DEPTH: usize = 512;
+
 /// Builds a DOM tree from a token stream using a stack of open elements.
 struct TreeBuilder {
     open: Vec<Node>,
@@ -357,7 +367,7 @@ impl TreeBuilder {
     fn current_tag(&self) -> Option<&str> {
         self.open.last().and_then(|n| match &n.node_type {
             dom::NodeType::Element(e) => Some(e.tag_name.as_str()),
-            _ => None,
+            dom::NodeType::Text(_) => None,
         })
     }
 
@@ -367,6 +377,26 @@ impl TreeBuilder {
             .expect("open stack never empties below root")
             .children
             .push(node);
+    }
+
+    /// Append text, merging into the previous sibling when it is also text. A
+    /// stray `<` is tokenized as its own text run, so without this coalescing a
+    /// fragment like `<<<` would become several adjacent text nodes that a
+    /// serialize then reparse round trip would fold back into one.
+    fn push_text(&mut self, data: String) {
+        let parent = self
+            .open
+            .last_mut()
+            .expect("open stack never empties below root");
+        if let Some(dom::Node {
+            node_type: dom::NodeType::Text(existing),
+            ..
+        }) = parent.children.last_mut()
+        {
+            existing.push_str(&data);
+        } else {
+            parent.children.push(dom::text(data));
+        }
     }
 
     fn open_element(&mut self, name: String, attributes: AttrMap) {
@@ -403,9 +433,8 @@ impl TreeBuilder {
     /// Apply implicit closing before opening `name`.
     fn implicit_close(&mut self, name: &str) {
         loop {
-            let cur = match self.current_tag() {
-                Some(t) => t,
-                None => return,
+            let Some(cur) = self.current_tag() else {
+                return;
             };
             let should_close = match name {
                 "li" => cur == "li",
@@ -480,7 +509,7 @@ pub fn parse(source: &str) -> Node {
                 if builder.open.len() == 1 && data.trim().is_empty() {
                     continue;
                 }
-                builder.push_child(dom::text(data));
+                builder.push_text(data);
             }
             Token::Comment(_) | Token::Doctype => {}
             Token::StartTag {
@@ -489,7 +518,18 @@ pub fn parse(source: &str) -> Node {
                 self_closing,
             } => {
                 builder.implicit_close(&name);
-                if self_closing || dom::html_void(&name) {
+                let is_void = dom::html_void(&name);
+                // `open` always holds the synthetic root plus one entry per open
+                // element, so `open.len() > MAX_DEPTH` means the nesting cap is
+                // reached. At the cap only void elements are kept: they never open
+                // a deeper level and serialize back to the identical token, so the
+                // round trip stays stable. Any element that would nest is dropped,
+                // which keeps the tree bounded without breaking `parse(serialize)`.
+                if builder.open.len() > MAX_DEPTH {
+                    if is_void {
+                        builder.push_child(dom::elem(name, attributes, Vec::new()));
+                    }
+                } else if self_closing || is_void {
                     builder.push_child(dom::elem(name, attributes, Vec::new()));
                 } else {
                     builder.open_element(name, attributes);

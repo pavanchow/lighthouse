@@ -105,8 +105,7 @@ impl Value {
     /// Return the length in pixels, treating any non length as zero.
     pub fn to_px(&self) -> f32 {
         match self {
-            Value::Length(f, Unit::Px) => *f,
-            Value::Number(f) => *f,
+            Value::Length(f, Unit::Px) | Value::Number(f) => *f,
             _ => 0.0,
         }
     }
@@ -128,7 +127,7 @@ struct Parser<'a> {
     pos: usize,
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     fn eof(&self) -> bool {
         self.pos >= self.input.len()
     }
@@ -144,8 +143,14 @@ impl<'a> Parser<'a> {
             if self.eof() {
                 break;
             }
+            let start = self.pos;
             if let Some(rule) = self.parse_rule() {
                 rules.push(rule);
+            }
+            // Guarantee forward progress so malformed input can never hang the
+            // parser: if a rule attempt consumed nothing, skip one byte.
+            if self.pos == start {
+                self.pos += 1;
             }
         }
         rules
@@ -171,7 +176,15 @@ impl<'a> Parser<'a> {
             if self.eof() || self.peek() == b'{' {
                 break;
             }
-            selectors.push(Selector::Simple(self.parse_simple_selector()));
+            let (simple, consumed) = self.parse_simple_selector();
+            if consumed {
+                selectors.push(Selector::Simple(simple));
+            } else {
+                // An unparseable byte at selector position (for example `:` or
+                // `@`). Skip to the next boundary so the rule is discarded
+                // rather than looping forever on the same byte.
+                self.skip_to_selector_boundary();
+            }
             self.consume_whitespace_and_comments();
             if !self.eof() && self.peek() == b',' {
                 self.pos += 1;
@@ -183,8 +196,11 @@ impl<'a> Parser<'a> {
         selectors
     }
 
-    fn parse_simple_selector(&mut self) -> SimpleSelector {
+    /// Parse one simple selector. The boolean is true when at least one byte was
+    /// consumed, which the caller uses to detect and recover from garbage input.
+    fn parse_simple_selector(&mut self) -> (SimpleSelector, bool) {
         let mut selector = SimpleSelector::default();
+        let start = self.pos;
         while !self.eof() {
             match self.peek() {
                 b'#' => {
@@ -204,7 +220,18 @@ impl<'a> Parser<'a> {
                 _ => break,
             }
         }
-        selector
+        (selector, self.pos > start)
+    }
+
+    /// Skip forward to the next byte that can start or end a rule, used to
+    /// recover from an unparseable selector.
+    fn skip_to_selector_boundary(&mut self) {
+        while !self.eof() {
+            match self.peek() {
+                b'{' | b'}' | b',' => break,
+                _ => self.pos += 1,
+            }
+        }
     }
 
     fn parse_declarations(&mut self) -> Vec<Declaration> {
@@ -317,13 +344,20 @@ pub fn parse_value(s: &str) -> Value {
     if let Some(color) = parse_color(s) {
         return Value::ColorValue(color);
     }
+    // Only finite numbers are accepted. `"nan"`, `"inf"` and exponents that
+    // overflow f32 otherwise parse successfully and would poison layout, so they
+    // fall through and are kept as opaque keywords instead.
     if let Some(stripped) = s.strip_suffix("px") {
         if let Ok(n) = stripped.trim().parse::<f32>() {
-            return Value::Length(n, Unit::Px);
+            if n.is_finite() {
+                return Value::Length(n, Unit::Px);
+            }
         }
     }
     if let Ok(n) = s.parse::<f32>() {
-        return Value::Number(n);
+        if n.is_finite() {
+            return Value::Number(n);
+        }
     }
     Value::Keyword(s.to_ascii_lowercase())
 }
@@ -372,7 +406,7 @@ fn dup_hex(s: &str) -> Option<u8> {
 }
 
 fn parse_rgb(inner: &str, alpha: bool) -> Option<Color> {
-    let parts: Vec<&str> = inner.split(',').map(|p| p.trim()).collect();
+    let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
     let want = if alpha { 4 } else { 3 };
     if parts.len() != want {
         return None;
