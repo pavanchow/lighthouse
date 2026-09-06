@@ -20,6 +20,7 @@
 
 use crate::css::{Unit, Value};
 use crate::style::{Display, StyledNode};
+use std::fmt::Write as _;
 
 /// A rectangle in absolute device coordinates. The origin is the top left.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -159,9 +160,8 @@ pub fn layout_tree<'a>(node: &'a StyledNode<'a>, mut viewport: Dimensions) -> La
 /// and skipping `display: none` subtrees.
 pub fn build_layout_tree<'a>(styled: &'a StyledNode<'a>) -> LayoutBox<'a> {
     let mut root = LayoutBox::new(match styled.display() {
-        Display::Block => BoxType::BlockNode(styled),
         Display::Inline => BoxType::InlineNode(styled),
-        Display::None => BoxType::BlockNode(styled),
+        Display::Block | Display::None => BoxType::BlockNode(styled),
     });
 
     // In a block formatting context (a node with at least one block child),
@@ -196,13 +196,11 @@ const DEFAULT_FONT_SIZE: f32 = 16.0;
 const CHAR_WIDTH_RATIO: f32 = 0.5;
 const LINE_HEIGHT_RATIO: f32 = 1.2;
 
-impl<'a> LayoutBox<'a> {
+impl LayoutBox<'_> {
     fn layout(&mut self, containing_block: Dimensions) {
-        match self.box_type {
-            BoxType::BlockNode(_) => self.layout_block(containing_block),
-            BoxType::AnonymousBlock => self.layout_block(containing_block),
-            BoxType::InlineNode(_) => self.layout_block(containing_block),
-        }
+        // Every box type currently uses the block layout path. Inline flow is
+        // handled inside `layout_children` for boxes with inline content.
+        self.layout_block(containing_block);
     }
 
     fn layout_block(&mut self, containing_block: Dimensions) {
@@ -245,16 +243,10 @@ impl<'a> LayoutBox<'a> {
         .sum();
 
         let mut margin_left = margin_left;
-        let mut margin_right = margin_right;
 
         let container_width = containing_block.content.width;
-        if width != auto && total > container_width {
-            if margin_left == auto {
-                margin_left = zero.clone();
-            }
-            if margin_right == auto {
-                margin_right = zero.clone();
-            }
+        if width != auto && margin_left == auto && total > container_width {
+            margin_left = zero.clone();
         }
 
         let underflow = container_width - total;
@@ -262,44 +254,66 @@ impl<'a> LayoutBox<'a> {
         let ml_is_auto = margin_left == auto;
         let mr_is_auto = margin_right == auto;
 
+        // Resolve `auto` width and `auto` left margin. The right margin only ever
+        // absorbs slack, which the containment clip below computes directly, so it
+        // is never assigned here.
         match (width_is_auto, ml_is_auto, mr_is_auto) {
-            (false, false, false) => {
-                margin_right = Value::Length(margin_right.to_px() + underflow, Unit::Px);
-            }
-            (false, false, true) => {
-                margin_right = Value::Length(underflow, Unit::Px);
-            }
-            (false, true, false) => {
-                margin_left = Value::Length(underflow, Unit::Px);
-            }
-            (false, true, true) => {
-                margin_left = Value::Length(underflow / 2.0, Unit::Px);
-                margin_right = Value::Length(underflow / 2.0, Unit::Px);
-            }
+            (false, true, false) => margin_left = Value::Length(underflow, Unit::Px),
+            (false, true, true) => margin_left = Value::Length(underflow / 2.0, Unit::Px),
             (true, _, _) => {
                 if ml_is_auto {
                     margin_left = zero.clone();
                 }
-                if mr_is_auto {
-                    margin_right = zero.clone();
-                }
-                if underflow >= 0.0 {
-                    width = Value::Length(underflow, Unit::Px);
+                width = if underflow >= 0.0 {
+                    Value::Length(underflow, Unit::Px)
                 } else {
-                    width = zero.clone();
-                    margin_right = Value::Length(margin_right.to_px() + underflow, Unit::Px);
-                }
+                    zero.clone()
+                };
             }
+            _ => {}
         }
 
+        let mut content_w = width.to_px();
+
+        // `box-sizing: border-box`: the specified width covers content, padding
+        // and border, so subtract them to recover the content width.
+        if border_box_sizing(style) {
+            content_w = (content_w
+                - padding_left.to_px()
+                - padding_right.to_px()
+                - border_left.to_px()
+                - border_right.to_px())
+            .max(0.0);
+        }
+
+        // Containment clip, the documented overflow behavior. An in-flow block
+        // box is clipped so its border box can never escape its containing block.
+        // The horizontal extent (left margin, borders, padding, content) is
+        // distributed within the container width in that fixed priority order,
+        // and the right margin absorbs any slack. Every value stays non-negative,
+        // so containment holds even when the specified box is far too wide.
+        let mut remaining = container_width.max(0.0);
+        let take = |remaining: &mut f32, want: f32| {
+            let got = want.max(0.0).min(*remaining);
+            *remaining -= got;
+            got
+        };
+        let ml = take(&mut remaining, margin_left.to_px());
+        let border_l = take(&mut remaining, border_left.to_px());
+        let border_r = take(&mut remaining, border_right.to_px());
+        let pad_l = take(&mut remaining, padding_left.to_px());
+        let pad_r = take(&mut remaining, padding_right.to_px());
+        content_w = take(&mut remaining, content_w);
+        let mr = remaining.max(0.0);
+
         let d = &mut self.dimensions;
-        d.content.width = width.to_px();
-        d.padding.left = padding_left.to_px();
-        d.padding.right = padding_right.to_px();
-        d.border.left = border_left.to_px();
-        d.border.right = border_right.to_px();
-        d.margin.left = margin_left.to_px();
-        d.margin.right = margin_right.to_px();
+        d.content.width = content_w;
+        d.padding.left = pad_l;
+        d.padding.right = pad_r;
+        d.border.left = border_l;
+        d.border.right = border_r;
+        d.margin.left = ml;
+        d.margin.right = mr;
     }
 
     fn calculate_block_position(&mut self, containing_block: Dimensions) {
@@ -449,10 +463,24 @@ impl<'a> LayoutBox<'a> {
         // while laying out children.
         if let Some(style) = self.styled_node() {
             if let Some(Value::Length(h, Unit::Px)) = style.value("height") {
-                self.dimensions.content.height = h;
+                let mut h = h;
+                if border_box_sizing(Some(style)) {
+                    let d = &self.dimensions;
+                    h -= d.padding.top + d.padding.bottom + d.border.top + d.border.bottom;
+                }
+                self.dimensions.content.height = h.max(0.0);
             }
         }
     }
+}
+
+/// Whether the box uses `box-sizing: border-box`, where the specified width and
+/// height include padding and border. The default is `content-box`.
+fn border_box_sizing(style: Option<&StyledNode>) -> bool {
+    matches!(
+        style.and_then(|s| s.value("box-sizing")),
+        Some(Value::Keyword(k)) if k == "border-box"
+    )
 }
 
 fn is_text(node: &StyledNode) -> bool {
@@ -494,10 +522,11 @@ fn pretty_into(b: &LayoutBox, out: &mut String, depth: usize) {
         BoxType::AnonymousBlock => "anon-block".to_string(),
     };
     let c = b.dimensions.content;
-    out.push_str(&format!(
-        "{label}  content=(x:{:.1} y:{:.1} w:{:.1} h:{:.1})\n",
+    let _ = writeln!(
+        out,
+        "{label}  content=(x:{:.1} y:{:.1} w:{:.1} h:{:.1})",
         c.x, c.y, c.width, c.height
-    ));
+    );
     for child in &b.children {
         pretty_into(child, out, depth + 1);
     }

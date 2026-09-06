@@ -42,7 +42,7 @@ pub enum Display {
 /// Properties that inherit from parent to child when unset.
 const INHERITED: &[&str] = &["color", "font-size", "font-family", "line-height", "text-align"];
 
-impl<'a> StyledNode<'a> {
+impl StyledNode<'_> {
     /// Look up a computed value by property name.
     pub fn value(&self, name: &str) -> Option<Value> {
         self.specified_values.get(name).cloned()
@@ -124,7 +124,7 @@ fn match_rule<'a>(elem: &ElementData, rule: &'a Rule) -> Option<MatchedRule<'a>>
     rule.selectors
         .iter()
         .filter(|s| matches(elem, s))
-        .map(|s| s.specificity())
+        .map(Selector::specificity)
         .max()
         .map(|spec| (spec, rule))
 }

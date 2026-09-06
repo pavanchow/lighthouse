@@ -65,9 +65,10 @@ fn render_background(list: &mut DisplayList, layout_box: &LayoutBox) {
 }
 
 fn render_borders(list: &mut DisplayList, layout_box: &LayoutBox) {
-    let color = match get_color(layout_box, "border-color").or_else(|| get_color(layout_box, "border")) {
-        Some(c) => c,
-        None => return,
+    let Some(color) =
+        get_color(layout_box, "border-color").or_else(|| get_color(layout_box, "border"))
+    else {
+        return;
     };
     let d = &layout_box.dimensions;
     let border_box = d.border_box();
@@ -115,9 +116,8 @@ fn render_borders(list: &mut DisplayList, layout_box: &LayoutBox) {
 }
 
 fn render_text(list: &mut DisplayList, layout_box: &LayoutBox) {
-    let node = match styled(layout_box) {
-        Some(n) => n,
-        None => return,
+    let Some(node) = styled(layout_box) else {
+        return;
     };
     if let crate::dom::NodeType::Text(data) = &node.node.node_type {
         let trimmed = data.trim();
