@@ -93,6 +93,51 @@ fn no_negative_dimensions_when_overconstrained() {
 }
 
 #[test]
+fn golden_box_sizing_border_box() {
+    // With border-box the specified 200px width and 100px height include the
+    // 20px padding and 10px border on each side, so the content box is
+    // 200-40-20 = 140 wide and 100-40-20 = 40 tall.
+    let css_src = "div { display: block; }\n\
+                   .a { width: 200px; height: 100px; padding: 20px; \
+                        border-width: 10px; box-sizing: border-box; }\n";
+    let layout = layout_with(r#"<div class="a"></div>"#, css_src, 400.0);
+    let div = &layout.children[0];
+    assert_rect(div.dimensions.content, 30.0, 30.0, 140.0, 40.0);
+}
+
+#[test]
+fn overflow_child_is_clipped_and_contained() {
+    // The inner box asks for 500px inside a 100px parent. It must be clipped so
+    // its border box never escapes the parent content box.
+    let css_src = "div { display: block; }\n\
+                   .outer { width: 100px; }\n\
+                   .inner { width: 500px; height: 10px; }\n";
+    let layout = layout_with(
+        r#"<div class="outer"><div class="inner"></div></div>"#,
+        css_src,
+        800.0,
+    );
+    let outer = &layout.children[0].dimensions.content;
+    let inner = layout.children[0].children[0].dimensions.border_box();
+    assert!(
+        inner.x >= outer.x - 0.01 && inner.x + inner.width <= outer.x + outer.width + 0.01,
+        "inner border box (x:{} w:{}) escaped outer content (x:{} w:{})",
+        inner.x,
+        inner.width,
+        outer.x,
+        outer.width
+    );
+}
+
+#[test]
+fn overflow_wide_box_clips_width_to_viewport() {
+    let css_src = "div { display: block; }\n.wide { width: 1000px; }\n";
+    let layout = layout_with(r#"<div class="wide"></div>"#, css_src, 100.0);
+    let w = layout.children[0].dimensions.content.width;
+    assert!((w - 100.0).abs() < 0.01, "expected clipped width 100, got {w}");
+}
+
+#[test]
 fn fuzz_layout_invariants_hold() {
     // Bounded run: seed and op count come from the environment in CI.
     let ops = fuzz::ops_from_env();

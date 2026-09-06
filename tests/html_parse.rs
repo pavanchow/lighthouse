@@ -104,6 +104,61 @@ fn comments_and_doctype_are_dropped() {
     assert_eq!(tag_of(&dom.children[0]), "div");
 }
 
+fn depth_of(node: &Node) -> usize {
+    1 + node.children.iter().map(depth_of).max().unwrap_or(0)
+}
+
+#[test]
+fn deeply_nested_input_is_depth_capped_and_does_not_overflow() {
+    // 200k unclosed <div> tags used to build a 200k deep tree and overflow the
+    // stack in the recursive serialize and layout stages. The tree builder now
+    // caps nesting depth, so parsing, serializing and pretty printing all stay
+    // bounded and never panic.
+    let n = 200_000;
+    let mut src = String::new();
+    for _ in 0..n {
+        src.push_str("<div>");
+    }
+    let dom = html::parse(&src);
+    assert!(
+        depth_of(&dom) <= 520,
+        "tree depth {} not capped",
+        depth_of(&dom)
+    );
+    // These recursive walks must not overflow the stack.
+    let _ = dom.to_html();
+    let _ = dom.pretty();
+}
+
+#[test]
+fn adversarial_markup_never_panics() {
+    // A corpus of hostile inputs: unclosed tags, stray delimiters, giant
+    // attributes, unterminated quotes and comments, bad entities, raw bytes.
+    let corpus = [
+        "<",
+        ">",
+        "<<<>>>",
+        "<a<<b>",
+        "<div class=\"unterminated",
+        "<div ============>",
+        "<!-- unterminated comment",
+        "<!doctype",
+        "</></></>",
+        "<div></span></div>",
+        "&amp;&#;&#xZZ;&nosemi&#x1F600;",
+        "<img src=\"a\" src=\"b\" src=\"c\">",
+        "<p><p><p><p><li><li><td><tr>",
+        "text 你好 \u{00a0} more",
+        "<style>body{color:red}</style>plain",
+    ];
+    for src in corpus {
+        let dom = html::parse(src);
+        // Round trip must be stable and must not panic.
+        let reparsed = html::parse(&dom.to_html());
+        assert_eq!(dom, reparsed, "round trip changed the tree for {src:?}");
+    }
+}
+
 #[test]
 fn round_trip_serialize_reparse_is_stable() {
     let sources = [

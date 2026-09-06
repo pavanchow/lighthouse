@@ -91,6 +91,46 @@ fn inheritance_of_color_from_ancestor() {
 }
 
 #[test]
+fn malformed_css_terminates_and_does_not_hang() {
+    // Each of these once caused the parser to spin forever on a byte it never
+    // consumed at selector position. Reaching the assertion at all proves the
+    // parser now always makes forward progress.
+    let hostile = [
+        ":",
+        "::::",
+        "@media screen { div { color: red; } }",
+        "!!! { }",
+        "(x) { color: red }",
+        "% ^ & { }",
+        "div { color: red } : @ ! ( ) p { color: blue }",
+        "}}}{{{;;;",
+        "/* unterminated",
+    ];
+    for src in hostile {
+        let sheet = css::parse(src);
+        // Applying the (possibly empty) sheet must also not panic.
+        let dom = html::parse("<div><p>x</p></div>");
+        let _ = style_tree(&dom, &sheet);
+    }
+}
+
+#[test]
+fn non_finite_lengths_are_rejected() {
+    // "nan", "inf" and f32 overflowing exponents must not become numeric values,
+    // or they would poison layout with NaN and infinity.
+    for junk in ["nan", "inf", "-inf", "1e40", "1e40px", "NaN"] {
+        match css::parse_value(junk) {
+            Value::Length(n, _) | Value::Number(n) => {
+                panic!("{junk:?} parsed to non-finite numeric {n}");
+            }
+            Value::Keyword(_) | Value::ColorValue(_) => {}
+        }
+    }
+    // A valid finite length still parses.
+    assert_eq!(css::parse_value("12px"), Value::Length(12.0, css::Unit::Px));
+}
+
+#[test]
 fn non_inherited_property_does_not_leak() {
     let css_src = "#root { width: 100px; }\n";
     let dom_src = r#"<div id="root"><p>child</p></div>"#;
